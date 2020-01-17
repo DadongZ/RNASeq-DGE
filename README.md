@@ -1,16 +1,14 @@
 # RNASeqDGE
-Gene differential expression analysis for RNASeq count matrix  
-version beta
+A web app/plugin for differential gene expression analysis for RNASeq count matrix  
+Version "under dev" 
+
 ## Author
 Dadong Zhang
 
-### To download
+### Download and quick run
+These demo run will perform DGE analyses for Dose 20 vs 10 using the RNASeq count matrix 'example_rnaseq_count_matrix.xlsx'
+The output is an interactive volcano plot for the DGE results.
 ```
 git clone https://github.com/DadongZ/RNASeqDGE.git
-```
-### Quick run:
-
-```r
-#May need to install few R packages
-R CMD BATCH RNASeqDGE.R
+#Then run the RNASeqDGE.R script
 ```

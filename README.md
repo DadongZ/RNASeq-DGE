@@ -6,7 +6,7 @@ Version "under dev"
 Dadong Zhang
 
 ### Download and quick run
-These demo run will perform DGE analyses for Dose 20 vs 10 using the RNASeq count matrix 'example_rnaseq_count_matrix.xlsx'
+This demo run will perform DGE analyses for Dose 20 vs 10 using the RNASeq count matrix 'example_rnaseq_count_matrix.xlsx'
 The output is an interactive volcano plot for the DGE results.
 ```
 git clone https://github.com/DadongZ/RNASeqDGE.git

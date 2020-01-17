@@ -6,7 +6,7 @@ Dadong Zhang
 
 ### To download
 ```
-git clone https://github.com/DadongZ/RNASeq-DGE.git
+git clone https://github.com/DadongZ/RNASeqDGE.git
 ```
 ### Quick run:
 

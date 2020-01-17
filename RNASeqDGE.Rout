@@ -1,0 +1,239 @@
+
+R version 3.6.2 (2019-12-12) -- "Dark and Stormy Night"
+Copyright (C) 2019 The R Foundation for Statistical Computing
+Platform: x86_64-pc-linux-gnu (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> ##Fri 17 Jan 2020 10:27:22 AM EST
+> ##Dadong Zhang
+> ##https://github.com/DadongZ/RNASeq-DGE
+> 
+> rm(list=ls())
+> library(tidyverse)
+── Attaching packages ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── tidyverse 1.2.1 ──
+✔ ggplot2 3.2.1     ✔ purrr   0.3.2
+✔ tibble  2.1.3     ✔ dplyr   0.8.3
+✔ tidyr   1.0.0     ✔ stringr 1.4.0
+✔ readr   1.3.1     ✔ forcats 0.4.0
+── Conflicts ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── tidyverse_conflicts() ──
+✖ dplyr::filter() masks stats::filter()
+✖ dplyr::lag()    masks stats::lag()
+> library(readxl)
+> library(shiny)
+> library(ggplot2)
+> library(DESeq2)
+Loading required package: S4Vectors
+Loading required package: stats4
+Loading required package: BiocGenerics
+Loading required package: parallel
+
+Attaching package: ‘BiocGenerics’
+
+The following objects are masked from ‘package:parallel’:
+
+    clusterApply, clusterApplyLB, clusterCall, clusterEvalQ, clusterExport, clusterMap, parApply, parCapply, parLapply, parLapplyLB, parRapply, parSapply, parSapplyLB
+
+The following objects are masked from ‘package:dplyr’:
+
+    combine, intersect, setdiff, union
+
+The following objects are masked from ‘package:stats’:
+
+    IQR, mad, sd, var, xtabs
+
+The following objects are masked from ‘package:base’:
+
+    anyDuplicated, append, as.data.frame, basename, cbind, colnames, dirname, do.call, duplicated, eval, evalq, Filter, Find, get, grep, grepl, intersect, is.unsorted, lapply,
+    Map, mapply, match, mget, order, paste, pmax, pmax.int, pmin, pmin.int, Position, rank, rbind, Reduce, rownames, sapply, setdiff, sort, table, tapply, union, unique, unsplit,
+    which, which.max, which.min
+
+
+Attaching package: ‘S4Vectors’
+
+The following objects are masked from ‘package:dplyr’:
+
+    first, rename
+
+The following object is masked from ‘package:tidyr’:
+
+    expand
+
+The following object is masked from ‘package:base’:
+
+    expand.grid
+
+Loading required package: IRanges
+
+Attaching package: ‘IRanges’
+
+The following objects are masked from ‘package:dplyr’:
+
+    collapse, desc, slice
+
+The following object is masked from ‘package:purrr’:
+
+    reduce
+
+Loading required package: GenomicRanges
+Loading required package: GenomeInfoDb
+Loading required package: SummarizedExperiment
+Loading required package: Biobase
+Welcome to Bioconductor
+
+    Vignettes contain introductory material; view with 'browseVignettes()'. To cite Bioconductor, see 'citation("Biobase")', and for packages 'citation("pkgname")'.
+
+Loading required package: DelayedArray
+Loading required package: matrixStats
+
+Attaching package: ‘matrixStats’
+
+The following objects are masked from ‘package:Biobase’:
+
+    anyMissing, rowMedians
+
+The following object is masked from ‘package:dplyr’:
+
+    count
+
+Loading required package: BiocParallel
+
+Attaching package: ‘DelayedArray’
+
+The following objects are masked from ‘package:matrixStats’:
+
+    colMaxs, colMins, colRanges, rowMaxs, rowMins, rowRanges
+
+The following object is masked from ‘package:purrr’:
+
+    simplify
+
+The following objects are masked from ‘package:base’:
+
+    aperm, apply, rowsum
+
+> library(reshape2)
+
+Attaching package: ‘reshape2’
+
+The following object is masked from ‘package:tidyr’:
+
+    smiths
+
+> library(calibrate)
+Loading required package: MASS
+
+Attaching package: ‘MASS’
+
+The following object is masked from ‘package:dplyr’:
+
+    select
+
+> options(stringsAsFactors=FALSE)
+> 
+> ##Local func
+> getres<-function(countfile, phenofile, AdjustedCutoff=0.05, FCCutoff=1){
++     count <- read_excel(countfile)%>%
++         column_to_rownames(var="Gene")
++     pheno <- read_excel(phenofile)%>%
++         column_to_rownames(var="Samples")
++ 
++     if (!identical(colnames(count), rownames(pheno))) {
++         message("Sample names in count matrix must be identical to the sample names in pheno data")
++         break
++     } 
++ 
++     dds <- DESeqDataSetFromMatrix(countData=count, 
++                                   colData=pheno, 
++                                   design=~Dose)
++     dds<-dds[rowSums(counts(dds))>0, ]
++     normalized_dat<-rlog(dds, blind=TRUE)
++     dds<-DESeq(dds)
++     res<-results(dds)%>%data.frame%>%
++         rownames_to_column(var="Gene")%>%
++         filter(complete.cases(.))%>%
++         mutate(log10padj=-log10(padj))%>%
++         arrange(pvalue)
++     res$Significance <- "NS"
++     res$Significance[(abs(res$log2FoldChange) > FCCutoff)] <- "FC"
++     res$Significance[(res$padj<AdjustedCutoff)] <- "FDR"
++     res$Significance[(res$padj<AdjustedCutoff) & (abs(res$log2FoldChange)>FCCutoff)] <- "FC_FDR"
++     res$Significance <- factor(res$Significance, levels=c("NS", "FC", "FDR", "FC_FDR"))
++ 
++     p <-ggplot(res, aes(x=log2FoldChange, y=log10padj)) +
++         geom_point(aes(color=factor(Significance)), alpha=1/2, size=2) +
++         theme_bw(base_size=16) +
++         xlab(bquote(~Log[2]~ "fold change")) +
++         ylab(bquote(~-Log[10]~adjusted~italic(P))) +
++         geom_vline(xintercept=c(-FCCutoff, FCCutoff), linetype="longdash", colour="black", size=0.4) +
++         geom_hline(yintercept=-log10(AdjustedCutoff), linetype="longdash", colour="black", size=0.4)
++ 
++     return(list(Results=res, plot=p))
++ }
+> 
+> #DEG analysis
+> countfile <-"example_rnaseq_count_matrix.xlsx"
+> phenofile <-"pheno_data.xlsx"
+> reslst<-getres(countfile, phenofile)
+converting counts to integer mode
+  the design formula contains a numeric variable with integer values,
+  specifying a model with increasing fold change for higher values.
+  did you mean for this to be a factor? if so, first convert
+  this variable to a factor using the factor() function
+estimating size factors
+estimating dispersions
+gene-wise dispersion estimates
+mean-dispersion relationship
+final dispersion estimates
+fitting model and testing
+> 
+> #plot
+> getshiny<-function(){
++   ui <- fluidPage(
++     fluidRow(
++       column(width = 8,
++         plotOutput("plot1", height = 900,
++           # Equivalent to: click = clickOpts(id = "plot_click")
++           click = "plot1_click",
++           brush = brushOpts(
++             id = "plot1_brush"
++           )
++         )
++       ),
++       column(width = 4,
++             h4("Brushed points"),
++             verbatimTextOutput("brush_info")
++       )
++     )
++   )
++ 
++ server <- function(input, output) {
++     output$plot1 <- renderPlot({
++         reslst[["plot"]]
++     })
++     output$brush_info <- renderPrint({
++         showdf<-reslst[["Results"]]%>%dplyr::select(Gene, log2FoldChange, pvalue, log10padj) 
++         brushedPoints(showdf, input$plot1_brush)
++     })
++ }
++    shinyApp(ui, server)
++ }
+> 
+> getshiny()
+
+Listening on http://127.0.0.1:6300
+
+
+Execution halted

@@ -2,6 +2,7 @@
 ##Dadong Zhang
 ##https://github.com/DadongZ/RNASeq-DGE
 
+rm(list=ls())
 library(tidyverse)
 library(readxl)
 library(shiny)
@@ -39,23 +40,22 @@ getres<-function(countfile, phenofile, AdjustedCutoff=0.05, FCCutoff=1){
     res$Significance[(res$padj<AdjustedCutoff)] <- "FDR"
     res$Significance[(res$padj<AdjustedCutoff) & (abs(res$log2FoldChange)>FCCutoff)] <- "FC_FDR"
     res$Significance <- factor(res$Significance, levels=c("NS", "FC", "FDR", "FC_FDR"))
-    return(res)
-}
 
-plotvolcano<-function(res, LabellingCutoff=0.05){
-    ggplot(res, aes(x=log2FoldChange, y=log10padj)) +
-    geom_point(aes(color=factor(Significance)), alpha=1/2, size=2) +
-    theme_bw(base_size=16) +
-       xlab(bquote(~Log[2]~ "fold change")) +
-       ylab(bquote(~-Log[10]~adjusted~italic(P))) +
-    geom_vline(xintercept=c(-FCCutoff, FCCutoff), linetype="longdash", colour="black", size=0.4) +
-    geom_hline(yintercept=-log10(AdjustedCutoff), linetype="longdash", colour="black", size=0.4)
+    p <-ggplot(res, aes(x=log2FoldChange, y=log10padj)) +
+        geom_point(aes(color=factor(Significance)), alpha=1/2, size=2) +
+        theme_bw(base_size=16) +
+        xlab(bquote(~Log[2]~ "fold change")) +
+        ylab(bquote(~-Log[10]~adjusted~italic(P))) +
+        geom_vline(xintercept=c(-FCCutoff, FCCutoff), linetype="longdash", colour="black", size=0.4) +
+        geom_hline(yintercept=-log10(AdjustedCutoff), linetype="longdash", colour="black", size=0.4)
+
+    return(list(Results=res, plot=p))
 }
 
 #DEG analysis
 countfile <-"example_rnaseq_count_matrix.xlsx"
 phenofile <-"pheno_data.xlsx"
-res<-getres(countfile, phenofile)
+reslst<-getres(countfile, phenofile)
 
 #plot
 getshiny<-function(){
@@ -79,10 +79,10 @@ getshiny<-function(){
 
 server <- function(input, output) {
     output$plot1 <- renderPlot({
-        plotvolcano(res)
+        reslst[["plot"]]
     })
     output$brush_info <- renderPrint({
-        showdf<-res%>%dplyr::select(Gene, log2FoldChange, pvalue, log10padj) 
+        showdf<-reslst[["Results"]]%>%dplyr::select(Gene, log2FoldChange, pvalue, log10padj) 
         brushedPoints(showdf, input$plot1_brush)
     })
 }

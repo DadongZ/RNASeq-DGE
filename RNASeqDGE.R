@@ -13,7 +13,7 @@ library(calibrate)
 options(stringsAsFactors=FALSE)
 
 ##Local func
-getres<-function(countfile, phenofile, AdjustedCutoff=0.05, FCCutoff=1){
+getres<-function(countfile, phenofile, AdjustedCutoff=0.05, FCCutoff=0.5){
     count <- read_excel(countfile)%>%
         column_to_rownames(var="Gene")
     pheno <- read_excel(phenofile)%>%
@@ -35,11 +35,9 @@ getres<-function(countfile, phenofile, AdjustedCutoff=0.05, FCCutoff=1){
         filter(complete.cases(.))%>%
         mutate(log10padj=-log10(padj))%>%
         arrange(pvalue)
-    res$Significance <- "NS"
-    res$Significance[(abs(res$log2FoldChange) > FCCutoff)] <- "FC"
-    res$Significance[(res$padj<AdjustedCutoff)] <- "FDR"
-    res$Significance[(res$padj<AdjustedCutoff) & (abs(res$log2FoldChange)>FCCutoff)] <- "FC_FDR"
-    res$Significance <- factor(res$Significance, levels=c("NS", "FC", "FDR", "FC_FDR"))
+    res<-res%>%
+        mutate(Significance=ifelse(log2FoldChange < (-FCCutoff) & padj < AdjustedCutoff, "FC_FDR_Down",
+                      ifelse(log2FoldChange > FCCutoff & padj < AdjustedCutoff, "FC_FDR_Up", "NS")))
 
     p <-ggplot(res, aes(x=log2FoldChange, y=log10padj)) +
         geom_point(aes(color=factor(Significance)), alpha=1/2, size=2) +
@@ -62,7 +60,7 @@ getshiny<-function(){
   ui <- fluidPage(
     fluidRow(
       column(width = 8,
-        plotOutput("plot1", height = 900,
+        plotOutput("plot1", height = 800,
           # Equivalent to: click = clickOpts(id = "plot_click")
           click = "plot1_click",
           brush = brushOpts(
@@ -82,7 +80,7 @@ server <- function(input, output) {
         reslst[["plot"]]
     })
     output$brush_info <- renderPrint({
-        showdf<-reslst[["Results"]]%>%dplyr::select(Gene, log2FoldChange, pvalue, log10padj) 
+        showdf<-reslst[["Results"]]%>%dplyr::select(Gene, log2FoldChange, pvalue, padj, log10padj) 
         brushedPoints(showdf, input$plot1_brush)
     })
 }

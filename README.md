@@ -8,5 +8,5 @@ git clone https://github.com/DadongZ/RNASeq-DGE.git
 ##### May need to install few R packages
 
 ```r
-R CMD BATCH RNASeq-DGE.R
+R CMD BATCH RNASeq_DGE.R
 ```

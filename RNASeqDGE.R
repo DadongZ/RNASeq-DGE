@@ -12,11 +12,8 @@ library(reshape2)
 library(calibrate)
 options(stringsAsFactors=FALSE)
 
-countfile<-"example_rnaseq_count_matrix.xlsx"
-phenofile<-"pheno_data.xlsx"
-
 ##Local func
-getres<-function(countfile, phenofile, AdjustedCutoff=0.05, FCCutoff=0.5){
+getres<-function(countfile, phenofile, comparison, AdjustedCutoff=0.05, FCCutoff=0.5){
   count <- read_excel(countfile)%>%
     column_to_rownames(var="Gene")
   pheno <- read_excel(phenofile)%>%
@@ -29,7 +26,7 @@ getres<-function(countfile, phenofile, AdjustedCutoff=0.05, FCCutoff=0.5){
   
   dds <- DESeqDataSetFromMatrix(countData=count, 
                                 colData=pheno, 
-                                design=~Condition)
+                                design=as.formula(paste0("~", comparison)))
   dds<-dds[rowSums(counts(dds))>0, ]
   normalized_dat<-assay(rlog(dds, blind=TRUE))%>%data.frame%>%rownames_to_column(var="Gene")
   dds<-DESeq(dds)
@@ -50,20 +47,19 @@ getres<-function(countfile, phenofile, AdjustedCutoff=0.05, FCCutoff=0.5){
     geom_vline(xintercept=c(-FCCutoff, FCCutoff), linetype="longdash", colour="black", size=0.4) +
     geom_hline(yintercept=-log10(AdjustedCutoff), linetype="longdash", colour="black", size=0.4)
   
-  return(list(counts=count%>%rownames_to_column(var="Gene"),
-              pdat=pheno%>%rownames_to_column(var="Samples"),
-              results=res,
+  return(list(results=res,
               normal=normalized_dat,
               plot=p))
 }
 
-# Define UI for data upload app ----
+# Define UI ----
 ui <- fluidPage(
   tabsetPanel(
+    #Input tabPanel
     tabPanel("Input", fluid = TRUE,
              
              # App title ----
-             titlePanel("Uploading Files"),
+             titlePanel("Upload data"),
              
              # Sidebar layout with input and output definitions ----
              sidebarLayout(
@@ -83,6 +79,8 @@ ui <- fluidPage(
                                       "text/comma-separated-values,text/plain",
                                       ".csv")),
                  
+                 textInput("design", "Column name for analysis", " "),
+
                  # Horizontal line ----
                  tags$hr(),
                  
@@ -108,6 +106,8 @@ ui <- fluidPage(
                )
              )
     ),
+    
+    #Results tabPanel
     tabPanel("Results", fluid = TRUE,
              # App title ----
              titlePanel("Download results"),
@@ -135,8 +135,9 @@ ui <- fluidPage(
                )
                
              )             
-
+             
     ),
+    #plot tabPanel 
     tabPanel("Plots", fluid = TRUE,
              fluidRow(
                column(width = 8,
@@ -156,28 +157,28 @@ ui <- fluidPage(
     )
   )
 )
-# Define server logic to read selected file ----
+
+
+# Define Server ----
 server <- function(input, output) {
   ##main results output
-  resobj <- reactive({
+  datobj <- reactive({
     req(input$file1)
     req(input$file2)
-    res<-getres(input$file1$datapath, input$file2$datapath)
-    return(list(counts=res[["counts"]], 
-                pheno=res[["pdat"]], 
-                normal=res[["normal"]],
-                results=res[["results"]],
-                volcano=res[["plot"]]))
+    count <- read_excel(input$file1$datapath)
+    pheno <- read_excel(input$file2$datapath)
+    return(list(counts=count, 
+                pheno=pheno))
   })
-  ##input tab
   
+  ##input tab
   ### matrix file
   output$contents <- renderTable({
     if(input$disp == "head") {
-      return(head(resobj()[["counts"]]))
+      return(head(datobj()[["counts"]]))
     }
     else {
-      return(resobj()[["counts"]])
+      return(datobj()[["counts"]])
     }
   })
   
@@ -186,11 +187,18 @@ server <- function(input, output) {
     
     
     if(input$disp == "head") {
-      return(head(resobj()[["pheno"]]))
+      return(datobj()[["pheno"]])
     }
     else {
-      return(resobj()[["pheno"]])
+      return(datobj()[["pheno"]])
     }
+  })
+  
+  resobj <- reactive({
+    res<-getres(input$file1$datapath, input$file2$datapath, comparison=input$design)
+    return(list(normal=res[["normal"]],
+                results=res[["results"]],
+                volcano=res[["plot"]]))
   })
   
   ##results panel
@@ -224,5 +232,6 @@ server <- function(input, output) {
     brushedPoints(showdf, input$plot1_brush)
   })
 }
+
 # Run the app ----
 shinyApp(ui, server)

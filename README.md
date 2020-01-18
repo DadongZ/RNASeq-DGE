@@ -5,10 +5,15 @@ Version "under dev"
 ## Author
 Dadong Zhang
 
-### Download and quick run
-This demo run will perform DGE analyses for Dose 20 vs 10 using the RNASeq count matrix 'example_rnaseq_count_matrix.xlsx'
-The output is an interactive volcano plot for the DGE results.
+### Download
+
 ```
 git clone https://github.com/DadongZ/RNASeqDGE.git
-#Then run the RNASeqDGE.R script
 ```
+### Run example
+This demo run will perform DGE analyses for Treatment using the RNASeq count matrix 'example_rnaseq_count_matrix.xlsx' and manifest file 'manifest.xlsx'. 
+1.run RNASeqDGE.R
+2.Upload 'example_rnaseq_count_matrix.xlsx'
+3.Upload 'manifest.xlsx'
+4.Comparions 'Treatment' #e.g. the column name Treatment in manifest.xlsx
+Take about 10s to finish...

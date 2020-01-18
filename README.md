@@ -2,9 +2,6 @@
 A web app/plugin for differential gene expression analysis for RNASeq count matrix  
 Version "under dev" 
 
-## Author
-Dadong Zhang
-
 ### Download
 
 ```

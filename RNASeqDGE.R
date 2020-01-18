@@ -68,11 +68,16 @@ ui <- fluidPage(
                sidebarPanel(
                  
                  # Input: Select a file ----
+                 uiOutput("mexample"),
+                 
                  fileInput("file1", "Count matrix File (.xlsx)",
                            multiple = TRUE,
                            accept = c("text/csv",
                                       "text/comma-separated-values,text/plain",
                                       ".csv")),
+                 
+                 uiOutput("pexample"),
+                 
                  fileInput("file2", "Manifest File (.xlsx)",
                            multiple = TRUE,
                            accept = c("text/csv",
@@ -101,8 +106,8 @@ ui <- fluidPage(
                mainPanel(
                  
                  # Output: Data file ----
-                 tableOutput("contents"),
-                 tableOutput("contents2")
+                 tableOutput("matrix"),
+                 tableOutput("pdat")
                )
              )
     ),
@@ -173,7 +178,8 @@ server <- function(input, output) {
   
   ##input tab
   ### matrix file
-  output$contents <- renderTable({
+
+  output$matrix <- renderTable({
     if(input$disp == "head") {
       return(head(datobj()[["counts"]]))
     }
@@ -182,10 +188,18 @@ server <- function(input, output) {
     }
   })
   
+  url1 <- a("Count matrix example", href="https://github.com/DadongZ/RNASeqDGE")
+  output$mexample <- renderUI({
+    tagList(url1)
+  })
+  
   ### pheno file 
-  output$contents2 <- renderTable({
-    
-    
+  url2 <- a("Manifest example", href="https://github.com/DadongZ/RNASeqDGE")
+  output$pexample <- renderUI({
+    tagList( url2)
+  })
+  
+  output$pdat <- renderTable({
     if(input$disp == "head") {
       return(datobj()[["pheno"]])
     }
@@ -194,6 +208,7 @@ server <- function(input, output) {
     }
   })
   
+
   resobj <- reactive({
     res<-getres(input$file1$datapath, input$file2$datapath, comparison=input$design)
     return(list(normal=res[["normal"]],

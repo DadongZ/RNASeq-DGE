@@ -11,7 +11,7 @@ Dadong Zhang
 git clone https://github.com/DadongZ/RNASeqDGE.git
 ```
 ### Run example
-This demo run will perform DGE analyses for Treatment using the RNASeq count matrix 'example_rnaseq_count_matrix.xlsx' and manifest file 'manifest.xlsx'. 
+The demo run will perform DGE analyses for 'Treatment' using the RNASeq count matrix 'example_rnaseq_count_matrix.xlsx' and manifest file 'manifest.xlsx'. 
 
 1.run RNASeqDGE.R 
 

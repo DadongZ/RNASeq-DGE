@@ -22,3 +22,9 @@ This demo run will perform DGE analyses for Treatment using the RNASeq count mat
 4.Comparions 'Treatment' #e.g. the column name Treatment in manifest.xlsx
 
 Take about 10s to finish...
+
+###Output
+
+1. The tab "Results" displays the full results. Download accessible for Results and normalized output.
+
+2. The tab "Plot" shows a brushable volcano plot of the output.

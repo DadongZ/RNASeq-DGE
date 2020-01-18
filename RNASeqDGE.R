@@ -67,17 +67,16 @@ ui <- fluidPage(
                # Sidebar panel for inputs ----
                sidebarPanel(
                  
-                 # Input: Select a file ----
                  uiOutput("mexample"),
                  
+                 # Input: Select a file ----
                  fileInput("file1", "Count matrix File (.xlsx)",
                            multiple = TRUE,
                            accept = c("text/csv",
                                       "text/comma-separated-values,text/plain",
                                       ".csv")),
-                 
+
                  uiOutput("pexample"),
-                 
                  fileInput("file2", "Manifest File (.xlsx)",
                            multiple = TRUE,
                            accept = c("text/csv",
@@ -99,7 +98,11 @@ ui <- fluidPage(
                  radioButtons("disp", "Display",
                               choices = c(Head = "head",
                                           All = "all"),
-                              selected = "head")
+                              selected = "head"),
+                 
+                 uiOutput("README"),
+                 
+                 uiOutput("issue")
                  
                ),
                # Main panel for displaying outputs ----
@@ -197,6 +200,16 @@ server <- function(input, output) {
   url2 <- a("Manifest example", href="https://github.com/DadongZ/RNASeqDGE")
   output$pexample <- renderUI({
     tagList( url2)
+  })
+  
+  readme <- a("README", href="https://github.com/DadongZ/RNASeqDGE/blob/master/README.md")
+  output$README <- renderUI({
+    tagList("Need help? ", readme)
+  })
+  
+  issue <- a("issues", href="https://github.com/DadongZ/RNASeqDGE/issues")
+  output$issue <- renderUI({
+    tagList("Please report issues at: ", issue)
   })
   
   output$pdat <- renderTable({

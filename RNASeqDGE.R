@@ -1,6 +1,6 @@
 ##Fri 17 Jan 2020 10:27:22 AM EST
 ##Dadong Zhang
-##https://github.com/DadongZ/RNASeq-DGE
+##https://github.com/DadongZ/RNASeqDGE
 
 rm(list=ls())
 library(tidyverse)

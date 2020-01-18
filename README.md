@@ -23,7 +23,7 @@ This demo run will perform DGE analyses for Treatment using the RNASeq count mat
 
 Take about 10s to finish...
 
-###Output
+### Output
 
 1. The tab "Results" displays the full results. Download accessible for Results and normalized output.
 

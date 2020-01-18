@@ -12,6 +12,9 @@ library(reshape2)
 library(calibrate)
 options(stringsAsFactors=FALSE)
 
+countfile<-"example_rnaseq_count_matrix.xlsx"
+phenofile<-"pheno_data.xlsx"
+
 ##Local func
 getres<-function(countfile, phenofile, AdjustedCutoff=0.05, FCCutoff=0.5){
   count <- read_excel(countfile)%>%
@@ -26,9 +29,9 @@ getres<-function(countfile, phenofile, AdjustedCutoff=0.05, FCCutoff=0.5){
   
   dds <- DESeqDataSetFromMatrix(countData=count, 
                                 colData=pheno, 
-                                design=~Dose)
+                                design=~Condition)
   dds<-dds[rowSums(counts(dds))>0, ]
-  normalized_dat<-rlog(dds, blind=TRUE)
+  normalized_dat<-assay(rlog(dds, blind=TRUE))%>%data.frame%>%rownames_to_column(var="Gene")
   dds<-DESeq(dds)
   res<-results(dds)%>%data.frame%>%
     rownames_to_column(var="Gene")%>%
@@ -47,7 +50,11 @@ getres<-function(countfile, phenofile, AdjustedCutoff=0.05, FCCutoff=0.5){
     geom_vline(xintercept=c(-FCCutoff, FCCutoff), linetype="longdash", colour="black", size=0.4) +
     geom_hline(yintercept=-log10(AdjustedCutoff), linetype="longdash", colour="black", size=0.4)
   
-  return(list(Results=res, plot=p))
+  return(list(counts=count%>%rownames_to_column(var="Gene"),
+              pdat=pheno%>%rownames_to_column(var="Samples"),
+              results=res,
+              normal=normalized_dat,
+              plot=p))
 }
 
 # Define UI for data upload app ----
@@ -101,6 +108,35 @@ ui <- fluidPage(
                )
              )
     ),
+    tabPanel("Results", fluid = TRUE,
+             # App title ----
+             titlePanel("Download results"),
+             
+             # Sidebar layout with input and output definitions ----
+             sidebarLayout(
+               
+               # Sidebar panel for inputs ----
+               sidebarPanel(
+                 
+                 # Input: Choose dataset ----
+                 selectInput("results", "Choose a dataset:",
+                             choices = c("Results", "Normalized matrix")),
+                 
+                 # Button
+                 downloadButton("downloadData", "Download")
+                 
+               ),
+               
+               # Main panel for displaying outputs ----
+               mainPanel(
+                 
+                 tableOutput("table")
+                 
+               )
+               
+             )             
+
+    ),
     tabPanel("Plots", fluid = TRUE,
              fluidRow(
                column(width = 8,
@@ -122,18 +158,20 @@ ui <- fluidPage(
 )
 # Define server logic to read selected file ----
 server <- function(input, output) {
+  ##main results output
   resobj <- reactive({
     req(input$file1)
-    counts <- read_excel(input$file1$datapath)  
     req(input$file2)
-    pheno <- read_excel(input$file2$datapath)
     res<-getres(input$file1$datapath, input$file2$datapath)
-    return(list(counts=counts, 
-                pheno=pheno, 
-                results=res[[1]],
-                volcano=res[[2]]))
+    return(list(counts=res[["counts"]], 
+                pheno=res[["pdat"]], 
+                normal=res[["normal"]],
+                results=res[["results"]],
+                volcano=res[["plot"]]))
   })
+  ##input tab
   
+  ### matrix file
   output$contents <- renderTable({
     if(input$disp == "head") {
       return(head(resobj()[["counts"]]))
@@ -143,6 +181,7 @@ server <- function(input, output) {
     }
   })
   
+  ### pheno file 
   output$contents2 <- renderTable({
     
     
@@ -154,6 +193,28 @@ server <- function(input, output) {
     }
   })
   
+  ##results panel
+  todowndat <- reactive({
+    switch(input$results,
+           "Results" = resobj()[["results"]],
+           "Normalized matrix" = resobj()[["normal"]]
+    )
+  })
+  
+  output$table <- renderTable({
+    todowndat()
+  })
+  
+  output$downloadData <- downloadHandler(
+    filename = function() {
+      paste(input$results, ".csv", sep = "")
+    },
+    content = function(file) {
+      write.csv(todowndat(), file, row.names = FALSE)
+    }
+  ) 
+  
+  ##plot panel
   output$plot1 <- renderPlot({
     resobj()[["volcano"]]
   })

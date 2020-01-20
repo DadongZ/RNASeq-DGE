@@ -1,3 +1,9 @@
+## Mon Jan 20 09:44:46 2020
+##Dadong Zhang
+
+##
+rm(list=ls())
+.libPaths(c(.libPaths(), "/usr/local/lib/R/"))
 library(tidyverse)
 library(readxl)
 library(shiny)

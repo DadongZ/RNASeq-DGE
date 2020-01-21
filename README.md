@@ -7,9 +7,9 @@ The demo run will perform DGE analyses for 'Treatment' using the RNASeq count ma
 
 1.run RNASeqDGE.R 
 
-2.Upload 'example_rnaseq_count_matrix.xlsx'
+2.Upload '/data/example_rnaseq_count_matrix.xlsx'
 
-3.Upload 'manifest.xlsx'
+3.Upload '/data/manifest.xlsx'
 
 4.Comparions 'Treatment' #e.g. the column name Treatment in manifest.xlsx
 

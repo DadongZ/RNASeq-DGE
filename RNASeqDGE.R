@@ -1,14 +1,3 @@
----
-title: "RNASeqDGE"
-author: "@DoubleOmics"
-runtime: shiny
-output:
-    html_document:
-        css: my.css
----
-
-```{r, echo=FALSE, comments="", warning=FALSE, message=FALSE}
-
 rm(list=ls())
 library(tidyverse)
 library(readxl)
@@ -17,6 +6,9 @@ library(ggplot2)
 library(DESeq2)
 library(reshape2)
 library(calibrate)
+library(shinydashboard)
+library(dashboardthemes)
+
 options(stringsAsFactors=FALSE)
 
 ##Local func
@@ -58,9 +50,23 @@ getres<-function(countfile, phenofile, comparison, AdjustedCutoff=0.05, FCCutoff
               normal=normalized_dat,
               plot=p))
 }
-
 # Define UI ----
 ui <- fluidPage(
+  dashboardPage(
+  dashboardHeader(title = "Basic dashboard"),
+  dashboardSidebar(),
+  dashboardBody(
+    # Boxes need to be put in a row (or column)
+    fluidRow(
+      box(plotOutput("plot1", height = 250)),
+
+      box(
+        title = "Controls",
+        sliderInput("slider", "Number of observations:", 1, 100, 50)
+      )
+    )
+  )
+  ),
   tabsetPanel(
     #Input tabPanel
     tabPanel("Input", fluid = TRUE,
@@ -270,6 +276,4 @@ server <- function(input, output) {
 
 # Run the app
 shinyApp(ui, server, options = list(height = 1000))
-
-```
 

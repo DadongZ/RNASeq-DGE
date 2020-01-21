@@ -2,11 +2,6 @@
 A web app/plugin for differential gene expression analysis for RNASeq count matrix  
 Version "under dev" 
 
-### Download
-
-```
-git clone https://github.com/DadongZ/RNASeqDGE.git
-```
 ### Run example
 The demo run will perform DGE analyses for 'Treatment' using the RNASeq count matrix 'example_rnaseq_count_matrix.xlsx' and manifest file 'manifest.xlsx'. 
 

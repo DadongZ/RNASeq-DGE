@@ -1,6 +1,13 @@
-##Sat Jan 18 2020 11:27:22 AM EST
-##Dadong Zhang
-##https://github.com/DadongZ/RNASeqDGE
+---
+title: "RNASeqDGE"
+author: "@DoubleOmics"
+runtime: shiny
+output:
+    html_document:
+        css: my.css
+---
+
+```{r, echo=FALSE, comments="", warning=FALSE, message=FALSE}
 
 rm(list=ls())
 library(tidyverse)
@@ -261,5 +268,8 @@ server <- function(input, output) {
   })
 }
 
-# Run the app ----
-shinyApp(ui, server)
+# Run the app
+shinyApp(ui, server, options = list(height = 1000))
+
+```
+

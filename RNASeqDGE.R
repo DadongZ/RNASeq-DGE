@@ -7,7 +7,7 @@ library(DESeq2)
 library(reshape2)
 library(calibrate)
 library(shinydashboard)
-library(dashboardthemes)
+
 
 options(stringsAsFactors=FALSE)
 
@@ -52,21 +52,6 @@ getres<-function(countfile, phenofile, comparison, AdjustedCutoff=0.05, FCCutoff
 }
 # Define UI ----
 ui <- fluidPage(
-  dashboardPage(
-  dashboardHeader(title = "Basic dashboard"),
-  dashboardSidebar(),
-  dashboardBody(
-    # Boxes need to be put in a row (or column)
-    fluidRow(
-      box(plotOutput("plot1", height = 250)),
-
-      box(
-        title = "Controls",
-        sliderInput("slider", "Number of observations:", 1, 100, 50)
-      )
-    )
-  )
-  ),
   tabsetPanel(
     #Input tabPanel
     tabPanel("Input", fluid = TRUE,
@@ -97,25 +82,18 @@ ui <- fluidPage(
                                       ".csv")),
                  
                  textInput("design", "Column name for analysis", " "),
+                 
+               
+                 
+                 progressBar(id = "ana", value = 0, display_pct = T),
+                 actionButton(inputId="run", "Run"),
 
-                 # Horizontal line ----
-                 tags$hr(),
-                 
-                 # Input: Checkbox if file has header ----
-                 checkboxInput("header", "Header", TRUE),
-                 
-                 # Horizontal line ----
-                 tags$hr(),
-                 
-                 # Input: Select number of rows to display ----
-                 radioButtons("disp", "Display",
-                              choices = c(Head = "head",
-                                          All = "all"),
-                              selected = "head"),
                  
                  uiOutput("README"),
                  
-                 uiOutput("issue")
+                 uiOutput("issue"),
+                 
+                 uiOutput("followus")
                  
                ),
                # Main panel for displaying outputs ----
@@ -181,7 +159,8 @@ ui <- fluidPage(
 
 
 # Define Server ----
-server <- function(input, output) {
+server <- function(input, output, session) {
+
   ##main results output
   datobj <- reactive({
     req(input$file1)
@@ -196,12 +175,7 @@ server <- function(input, output) {
   ### matrix file
 
   output$matrix <- renderTable({
-    if(input$disp == "head") {
-      return(head(datobj()[["counts"]]))
-    }
-    else {
-      return(datobj()[["counts"]])
-    }
+      head(datobj()[["counts"]])
   })
   
   url1 <- a("Count matrix example", href="https://github.com/DadongZ/RNASeqDGE/tree/master/data")
@@ -225,24 +199,30 @@ server <- function(input, output) {
     tagList("Please report issues at: ", issue)
   })
   
+  output$followus <- renderUI({
+    tagList("Follow us: ", "@DoubleOmics")
+  })
+  
   output$pdat <- renderTable({
-    if(input$disp == "head") {
-      return(datobj()[["pheno"]])
-    }
-    else {
-      return(datobj()[["pheno"]])
-    }
+      datobj()[["pheno"]]
   })
   
-
   resobj <- reactive({
-    res<-getres(input$file1$datapath, input$file2$datapath, comparison=input$design)
-    return(list(normal=res[["normal"]],
-                results=res[["results"]],
-                volcano=res[["plot"]]))
+    withProgress(session, min=0, max=1, {
+      setProgress(message = "Analyzing....")
+      res<-getres(input$file1$datapath, input$file2$datapath, comparison=input$design)
+      jobLength = 10
+      for (i in 1:jobLength) {
+        # Do work
+        setProgress(value = i)
+      }
+      return(list(normal=res[["normal"]],
+                  results=res[["results"]],
+                  volcano=res[["plot"]]))
+    })
   })
   
-  ##results panel
+##results panel
   todowndat <- reactive({
     switch(input$results,
            "Results" = resobj()[["results"]],

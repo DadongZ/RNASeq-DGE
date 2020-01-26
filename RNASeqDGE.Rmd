@@ -8,33 +8,37 @@ output:
 ---
 
 ```{r, echo=FALSE, comments="", warning=FALSE, message=FALSE}
-
 rm(list=ls())
 library(tidyverse)
 library(readxl)
 library(shiny)
+library(shinyWidgets)
 library(ggplot2)
 library(DESeq2)
 library(reshape2)
 library(calibrate)
+library(airway)
+library(gage)
+data(airway)
 options(stringsAsFactors=FALSE)
 
 ##Local func
-getres<-function(countfile, phenofile, comparison, level1, level0, AdjustedCutoff=0.05, FCCutoff=1){
-  #read files
-  count <- read_excel(countfile)%>%
-    column_to_rownames(var="Gene")
-  pheno <- read_excel(phenofile)%>%
-    column_to_rownames(var="Samples")
-  
-  if (!identical(colnames(count), rownames(pheno))) {
+getres<-function(count, pdat, comparison, level1, level0, AdjustedCutoff=0.05, FCCutoff=1){
+  gcol<-colnames(count)[1]
+  count<-count%>%data.frame%>%
+    column_to_rownames(var=gcol)
+  pcol<-colnames(pdat)[1]
+  pdat<-pdat%>%data.frame%>%
+    column_to_rownames(var=pcol)
+    
+  if (!identical(colnames(count), rownames(pdat))) {
     message("Sample names in count matrix must be identical to the sample names in pheno data")
     break
   } 
   
   #dds object
   dds <- DESeqDataSetFromMatrix(countData=count, 
-                                colData=pheno, 
+                                colData=pdat, 
                                 design=as.formula(paste0("~", comparison)))
   dds<-dds[rowSums(counts(dds))>0, ]
   
@@ -80,8 +84,8 @@ ui <- fluidPage(
                # sidebar panel for inputs ----
                sidebarPanel(
                  
-                 #example1 link
-                 uiOutput("mexample"),
+                 #show ct demo
+                 actionBttn("runexample", "RUN demo data", style="simple", size="sm", color = "primary"),
                  
                  # input1: Select a file ----
                  fileInput("file1", "Count matrix File (.xlsx)",
@@ -89,9 +93,6 @@ ui <- fluidPage(
                            accept = c("text/csv",
                                       "text/comma-separated-values,text/plain",
                                       ".csv")),
-
-                 #example2 link
-                 uiOutput("pexample"),
                  
                  #input2: select a file ----
                  fileInput("file2", "Manifest File (.xlsx)",
@@ -110,10 +111,11 @@ ui <- fluidPage(
                  uiOutput("level1"),
                  
                  #action run
-                 actionButton("runbutton", "Run"),
+                 actionBttn("runbutton", "GO", style="simple", size="sm", color = "primary"),
                  
+                 actionBttn("reset", "RESET", style="simple", size="sm", color = "warning"),
                  #comment message
-                 p("Click to perform differential gene expression analysis between the selected groups"),
+                 p("Click GO to perform differential gene expression analysis between the selected groups"),
                  
                  #README link
                  uiOutput("README"),
@@ -188,52 +190,163 @@ ui <- fluidPage(
 server <- function(input, output, session) {
   
   #tabPanel-Input
-  datobj <- reactive({
-    req(input$file1)
-    req(input$file2)
-    count <- read_excel(input$file1$datapath)
-    pheno <- read_excel(input$file2$datapath)
-    return(list(counts=count, 
-                pheno=pheno))
+  
+  ###demo data
+  ####count
+  set.seed(123)
+  ctdemo<- assay(airway, "counts")
+  ctdemo<-ctdemo[sample(1:nrow(ctdemo), 2000), ]%>%data.frame()%>%
+    rownames_to_column(var="Gene")
+  ####manifest
+  pdemo<-colData(airway)%>%data.frame%>%
+    rownames_to_column(var="ID")
+  ###display demo count matrix
+  observeEvent(input$runexample, {
+    output$matrix <- renderTable({
+      head(ctdemo, 10)
+    })
+    output$pdat <- renderTable({
+      head(pdemo, 10)
+    })
+    
+    observe({
+      updateSelectInput(session, "design", choices="dex")
+    })
+    
+    output$level0 <- renderUI({
+      selectInput("ref0", "Reference group", "untrt")
+    })
+    
+    
+    output$level1 <- renderUI({
+      selectInput("ref1", "Study group", "trt")
+    })
+    
+    
+    observeEvent(input$runbutton, {
+      resdemo <- reactive({
+        res<-getres(ctdemo, pdemo,
+                    comparison="dex", 
+                    level1="trt",
+                    level0="untrt")
+        return(list(normal=res[["normal"]],
+                    results=res[["results"]],
+                    volcano=res[["plot"]]))
+      })
+      
+      todowndat <- reactive({
+        switch(input$results,
+               "Results" = resdemo()[["results"]],
+               "Normalized matrix" = resdemo()[["normal"]]
+        )
+      })
+      
+      output$table <- renderTable({
+        todowndat()
+      })
+      
+      output$downloadData <- downloadHandler(
+        filename = function() {
+          paste(input$results, ".csv", sep = "")
+        },
+        content = function(file) {
+          write.csv(todowndat(), file, row.names = FALSE)
+        }
+      ) 
+      
+      #tabPanel-Results
+      output$plot1 <- renderPlot({
+        resdemo()[["volcano"]]
+      })
+      
+      output$brush_info <- renderPrint({
+        showdf<-resdemo()[["results"]]%>%dplyr::select(Gene, log2FoldChange, pvalue, padj, log10padj) 
+        brushedPoints(showdf, input$plot1_brush)
+      })
+    })
   })
   
-  
-  ### matrix file
-
-  output$matrix <- renderTable({
-      return(head(datobj()[["counts"]]))
+  observeEvent(input$reset, {
+    
+    ctobj <- reactive({
+      req(input$file1)
+      count <- read_excel(input$file1$datapath)
+      return(count)
+    })
+    
+    pobj <- reactive({
+      req(input$file2)
+      pheno <- read_excel(input$file2$datapath)
+      return(pheno=pheno)
+    })
+    
+    
+    ### matrix file
+    output$matrix <- renderTable({
+      head(ctobj())
+    })
+    
+    output$pdat <- renderTable({
+      pobj()
+    })
+    
+    ### pheno file 
+    observe({
+      updateSelectInput(session, "design", choices=names(pobj()))
+    })
+    
+    output$level0 <- renderUI({
+      selectInput("ref0", "Reference group", pobj()[[input$design]])
+    })
+    
+    output$level1 <- renderUI({
+      selectInput("ref1", "Study group", pobj()[[input$design]])
+    })
+    
+    observeEvent(input$runbutton, { 
+      #tabPanel-Results
+      resobj <- reactive({
+        res<-getres(ctobj(), pobj(),
+                    comparison=input$design, 
+                    level1=input$ref1,
+                    level0=input$ref0)
+        return(list(normal=res[["normal"]],
+                    results=res[["results"]],
+                    volcano=res[["plot"]]))
+      })
+      
+      todowndat <- reactive({
+        switch(input$results,
+               "Results" = resobj()[["results"]],
+               "Normalized matrix" = resobj()[["normal"]]
+        )
+      })
+      
+      output$table <- renderTable({
+        todowndat()
+      })
+      
+      output$downloadData <- downloadHandler(
+        filename = function() {
+          paste(input$results, ".csv", sep = "")
+        },
+        content = function(file) {
+          write.csv(todowndat(), file, row.names = FALSE)
+        }
+      ) 
+      
+      #tabPanel-Results
+      output$plot1 <- renderPlot({
+        resobj()[["volcano"]]
+      })
+      
+      output$brush_info <- renderPrint({
+        showdf<-resobj()[["results"]]%>%dplyr::select(Gene, log2FoldChange, pvalue, padj, log10padj) 
+        brushedPoints(showdf, input$plot1_brush)
+      })
+      
+    }) 
   })
-  
-  url1 <- a("Count matrix example", href="https://github.com/DadongZ/RNASeqDGE/tree/master/data")
-
-  output$mexample <- renderUI({
-    tagList(url1)
-  })
-  
-  output$pdat <- renderTable({
-      return(datobj()[["pheno"]])
-  })
-  
-  ### pheno file 
-  url2 <- a("Manifest example", href="https://github.com/DadongZ/RNASeqDGE/tree/master/data")
-  
-  output$pexample <- renderUI({
-    tagList( url2)
-  })
-
-  observe({
-    updateSelectInput(session, "design", choices=names(datobj()[["pheno"]]))
-  })
-  
-  output$level0 <- renderUI({
-     selectInput("ref0", "Reference group", datobj()[["pheno"]][[input$design]])
-  })
-
-  
-  output$level1 <- renderUI({
-     selectInput("ref1", "Study group", datobj()[["pheno"]][[input$design]])
-  })
-
   
   readme <- a("README", href="https://github.com/DadongZ/RNASeqDGE/blob/master/README.md")
   output$README <- renderUI({
@@ -244,52 +357,10 @@ server <- function(input, output, session) {
   output$issue <- renderUI({
     tagList("Please report issues at: ", issue)
   })
-
-  #tabPanel-Results
-  resobj <- eventReactive(input$runbutton, {
-    res<-getres(input$file1$datapath, input$file2$datapath,
-                comparison=input$design, 
-                level1=input$ref1,
-                level0=input$ref0)
-    return(list(normal=res[["normal"]],
-                results=res[["results"]],
-                volcano=res[["plot"]]))
-  })
   
-  todowndat <- reactive({
-    switch(input$results,
-           "Results" = resobj()[["results"]],
-           "Normalized matrix" = resobj()[["normal"]]
-    )
-  })
-  
-  output$table <- renderTable({
-    todowndat()
-  })
-  
-  output$downloadData <- downloadHandler(
-    filename = function() {
-      paste(input$results, ".csv", sep = "")
-    },
-    content = function(file) {
-      write.csv(todowndat(), file, row.names = FALSE)
-    }
-  ) 
-  
-  #tabPanel-Results
-  output$plot1 <- renderPlot({
-    resobj()[["volcano"]]
-  })
-  
-  output$brush_info <- renderPrint({
-    showdf<-resobj()[["results"]]%>%dplyr::select(Gene, log2FoldChange, pvalue, padj, log10padj) 
-    brushedPoints(showdf, input$plot1_brush)
-  })
 }
-
 
 ## Run the app
 shinyApp(ui, server, options = list(height = 1100))
 
 ```
-

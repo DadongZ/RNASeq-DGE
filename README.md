@@ -2,7 +2,7 @@
 A web app/plugin for differential gene expression analysis for RNASeq count matrix  
 Version "under dev" 
 
-### on developing
+### On developing
 http://doubleomics.shinyapps.io/rnaseqdge/
 ### Output
 

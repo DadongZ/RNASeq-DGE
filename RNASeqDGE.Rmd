@@ -217,52 +217,49 @@ server <- function(input, output, session) {
       selectInput("ref0", "Reference group", "untrt")
     })
     
-    
     output$level1 <- renderUI({
       selectInput("ref1", "Study group", "trt")
     })
     
-    
+    resdemo <- reactiveVal()
     observeEvent(input$runbutton, {
-      resdemo <- reactive({
-        res<-getres(ctdemo, pdemo,
-                    comparison="dex", 
-                    level1="trt",
-                    level0="untrt")
-        return(list(normal=res[["normal"]],
-                    results=res[["results"]],
-                    volcano=res[["plot"]]))
+      resdemo <- (NULL)
+      withProgress(message = 'Calculation in progress', style="old", value=0, {
+        Sys.sleep(1)
+        resdemo(getres(ctdemo, pdemo,
+                       comparison="dex", 
+                       level1="trt",
+                       level0="untrt"))
+        incProgress(1)
       })
-      
-      todowndat <- reactive({
-        switch(input$results,
-               "Results" = resdemo()[["results"]],
-               "Normalized matrix" = resdemo()[["normal"]]
-        )
-      })
-      
-      output$table <- renderTable({
-        todowndat()
-      })
-      
-      output$downloadData <- downloadHandler(
-        filename = function() {
-          paste(input$results, ".csv", sep = "")
-        },
-        content = function(file) {
-          write.csv(todowndat(), file, row.names = FALSE)
-        }
-      ) 
-      
-      #tabPanel-Results
-      output$plot1 <- renderPlot({
-        resdemo()[["volcano"]]
-      })
-      
-      output$brush_info <- renderPrint({
-        showdf<-resdemo()[["results"]]%>%dplyr::select(Gene, log2FoldChange, pvalue, padj, log10padj) 
-        brushedPoints(showdf, input$plot1_brush)
-      })
+    })
+    todowndat <- reactive({
+      switch(input$results,
+             "Results" = resdemo()[["results"]],
+             "Normalized matrix" = resdemo()[["normal"]]
+      )
+    })
+    
+    output$table <- renderTable({
+      todowndat()
+    })
+    
+    output$downloadData <- downloadHandler(
+      filename = function() {
+        paste(input$results, ".csv", sep = "")
+      },
+      content = function(file) {
+        write.csv(todowndat(), file, row.names = FALSE)
+      }
+    ) 
+    #tabPanel-Results
+    output$plot1 <- renderPlot({
+      resdemo()[["plot"]]
+    })
+    
+    output$brush_info <- renderPrint({
+      showdf<-resdemo()[["results"]]%>%dplyr::select(Gene, log2FoldChange, pvalue, padj, log10padj) 
+      brushedPoints(showdf, input$plot1_brush)
     })
   })
   
@@ -303,16 +300,18 @@ server <- function(input, output, session) {
       selectInput("ref1", "Study group", pobj()[[input$design]])
     })
     
-    observeEvent(input$runbutton, { 
-      #tabPanel-Results
-      resobj <- reactive({
-        res<-getres(ctobj(), pobj(),
-                    comparison=input$design, 
-                    level1=input$ref1,
-                    level0=input$ref0)
-        return(list(normal=res[["normal"]],
-                    results=res[["results"]],
-                    volcano=res[["plot"]]))
+
+      resobj <- reactiveVal()
+      observeEvent(input$runbutton, {
+        resobj <- (NULL)
+        withProgress(message = 'Calculation in progress', style="old", value=0, {
+          Sys.sleep(1)
+          resobj(getres(ctobj(), pobj(),
+                        comparison=input$design, 
+                        level1=input$ref1,
+                        level0=input$ref0))
+          incProgress(1)
+        })
       })
       
       todowndat <- reactive({
@@ -337,15 +336,14 @@ server <- function(input, output, session) {
       
       #tabPanel-Results
       output$plot1 <- renderPlot({
-        resobj()[["volcano"]]
+        resobj()[["plot"]]
       })
       
       output$brush_info <- renderPrint({
         showdf<-resobj()[["results"]]%>%dplyr::select(Gene, log2FoldChange, pvalue, padj, log10padj) 
         brushedPoints(showdf, input$plot1_brush)
       })
-      
-    }) 
+   
   })
   
   readme <- a("README", href="https://github.com/DadongZ/RNASeqDGE/blob/master/README.md")

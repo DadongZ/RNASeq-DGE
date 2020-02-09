@@ -5,6 +5,6 @@ account: doubleomics
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 1694448
-bundleId: 2762601
+bundleId: 2762653
 url: https://doubleomics.shinyapps.io/rnaseqdge/
-when: 1580344464.89175
+when: 1580346820.11994

@@ -1,0 +1,372 @@
+---
+title: "RNASeq-DGE"
+author: "Differential gene expression based on RNASeq count matrix"
+output: 
+  html_document:
+    css: my.css
+runtime: shiny
+---
+
+$Version \ 1.0.0$
+
+```{r setup, echo=FALSE, comments="", warning=FALSE, message=FALSE}
+rm(list=ls())
+library(tidyverse)
+library(readxl)
+library(shiny)
+library(shinyjs)
+library(shinyWidgets)
+library(shinyalert)
+library(ggplot2)
+library(DESeq2)
+library(reshape2)
+library(calibrate)
+library(gage)
+library(DEFormats)
+library(HGNChelper)
+library(org.Hs.eg.db)
+library(org.Mm.eg.db)
+data("hgnc.table")
+options(stringsAsFactors=FALSE)
+```
+
+```{r local, echo=FALSE, comments="", warning=FALSE, message=FALSE}
+##Local func
+getdgeres<-function(count, manifest, comparison, level1, level0){
+  gcol<-colnames(count)[1]
+  count<-count%>%data.frame%>%
+    column_to_rownames(var=gcol)
+  pcol<-colnames(manifest)[1]
+  manifest<-manifest%>%data.frame%>%
+    column_to_rownames(var=pcol)
+  
+  if (!identical(colnames(count), rownames(manifest))) {
+    message("Sample names in count matrix must be identical to the sample names in pheno data")
+    break
+  } 
+  
+  #dds object
+  dds <- DESeqDataSetFromMatrix(countData=count, 
+                                colData=manifest, 
+                                design=as.formula(paste0("~", comparison)))
+  dds<-dds[rowSums(counts(dds))>0, ]
+  
+  normalized_dat<-assay(rlog(dds, blind=TRUE))%>%data.frame%>%rownames_to_column(var="Gene")
+  dds<-DESeq(dds)
+  #results
+  res<-results(dds, contrast=c(comparison, level1, level0))%>%data.frame%>%
+    rownames_to_column(var="Gene")%>%
+    filter(complete.cases(.))%>%
+    mutate(log10padj=-log10(padj))%>%
+    arrange(pvalue)
+  return(list(results=res, 
+              normal=normalized_dat))
+}
+
+getvolcano<-function(dgeres, AdjustedCutoff=0.05, FCCutoff=1){
+  brushdat<-dgeres%>%
+    mutate(Significance=factor(ifelse(log2FoldChange < (-FCCutoff) & padj < AdjustedCutoff, "FC_FDR_Down",
+                                      ifelse(log2FoldChange > FCCutoff & padj < AdjustedCutoff, "FC_FDR_Up", "NS"))))
+  
+  #plot
+  p <-ggplot(brushdat, aes(x=log2FoldChange, y=log10padj)) +
+    geom_point(aes(color=Significance), alpha=1/2, size=2) +
+    theme(legend.position = "bottom", legend.title = element_blank())+
+    theme_bw(base_size=16) +
+    xlab(bquote(~Log[2]~ "fold change")) +
+    ylab(bquote(~-Log[10]~adjusted~italic(P))) +
+    geom_vline(xintercept=c(-FCCutoff, FCCutoff), linetype="longdash", colour="black", size=0.4) +
+    geom_hline(yintercept=-log10(AdjustedCutoff), linetype="longdash", colour="black", size=0.4)
+  
+  return(list(plot=p,
+              brush=brushdat))
+}
+
+```
+
+```{r ui,  echo=FALSE, comments="", warning=FALSE, message=FALSE}
+
+jsResetCode <- "shinyjs.reset = function() {history.go(0)}"
+
+ui <- fluidPage(
+  #set backgroud color
+  setBackgroundColor(
+    color = c("#F7FBFF", "#2171B5"),
+    gradient = "radial",
+    direction = c("top", "left")
+  ),
+  
+  #reset session by reset button
+  useShinyjs(),                                           # Include shinyjs in the UI
+  extendShinyjs(text = jsResetCode, functions="reset"), 
+  
+  #panels
+  tabsetPanel(
+    ##tabPanel-Input
+    tabPanel("Input", fluid = TRUE,
+             
+             # tab title ----
+             titlePanel("Upload data"),
+             
+             # sidebar layout with input and output tables ----
+             sidebarLayout(
+               
+               # sidebar panel for inputs ----
+               sidebarPanel(
+                 #show ct demo
+                 actionBttn("runexample", "Import demo data", style="simple", size="sm", color = "primary"),
+                 
+                 # input1: Select a file ----
+                 fileInput("file1", "Count matrix File (.xlsx)",
+                           multiple = FALSE,
+                           accept = c("text/csv",
+                                      "text/comma-separated-values,text/plain",
+                                      ".csv")),
+                 
+                 #input2: select a file ----
+                 fileInput("file2", "Manifest File (.xlsx)",
+                           multiple = FALSE,
+                           accept = c("text/csv",
+                                      "text/comma-separated-values,text/plain",
+                                      ".csv")),
+                 
+                 #select column name
+                 selectInput("design", "Column name for analysis", " "),
+                 
+                 #select ref group
+                 uiOutput("level0"),
+                 
+                 #select study group
+                 uiOutput("level1"),
+                 
+
+                 #action run
+                 actionBttn("runbutton", "GO", style="simple", size="sm", color = "primary"),
+                 
+                 actionBttn("reset", "RESET", style="simple", size="sm", color = "warning"),
+                 
+                 #comment message
+                 helpText("For demonstration, click `Import demo data` and `GO`"),
+                 helpText("Click `RESET` to upload your data and `GO` to launch analyses"),
+                 
+                 #README link
+                 h6("Need support in generating count matrix?"),
+                 a(actionBttn(inputId = "email1", 
+                              label = "Contact developer", 
+                              icon = icon("envelope", lib = "font-awesome"),
+                              size="xs",
+                              color="success"),
+                   href="mailto:doubleomics@gmail.com"),
+                 
+                 a(actionBttn(inputId = "twitter_share",
+                              label = "Follow us",
+                              icon = icon("twitter", lib = "font-awesome"),
+                              size="xs",
+                              color="success"),
+                   href = "https://twitter.com/DoubleOmics")
+                 
+               ),
+               # Main panel for displaying outputs ----
+               mainPanel(
+                 # Output: Data file ----
+                 span(textOutput("ngene"),style="color:blue"),
+                 span(textOutput("nsample"),style="color:blue"),
+                 tableOutput("matrix"),
+                 tableOutput("pdat")
+               )
+             )
+    ),
+    
+    #tabPanel-Results
+    tabPanel("DGE results", fluid = TRUE,
+             # App title ----
+             titlePanel("Download results"),
+             # Sidebar layout with input and output definitions ----
+             sidebarLayout(
+               # Sidebar panel for inputs ----
+               sidebarPanel(
+                 # Input: Choose dataset ----
+                 selectInput("results", "Choose a dataset:",
+                             choices = c("Results", "Normalized matrix")),
+                 # Button
+                 downloadButton("downloadData", "Download")
+                 
+               ),
+               # Main panel for displaying outputs ----
+               mainPanel(
+                 tableOutput("table")
+               )
+             )
+    ),
+    
+    #tabPanel-Plots
+    tabPanel("Volcano plot", fluid = TRUE,
+             fluidRow(
+               column(width = 8,
+                      plotOutput("plot1", height = 800,
+                                 # Equivalent to: click = clickOpts(id = "plot_click")
+                                 click = "plot1_click",
+                                 brush = brushOpts(
+                                   id = "plot1_brush"
+                                 )
+                      )
+               ),
+               column(width = 4,
+                      h4("Brushed points"),
+                      verbatimTextOutput("brush_info")
+               )
+             )
+    )
+  )
+)
+```
+
+```{r sever,  echo=FALSE, comments="", warning=FALSE, message=FALSE}
+server <- function(input, output, session) {
+  #tabPanel-Input
+  ###display demo count matrix
+  ctobj <- isolate(reactiveVal())
+  pobj <- isolate(reactiveVal())
+  
+  observeEvent(input$runexample, {
+    ctobj <- (NULL)
+    pobj <- (NULL)
+    
+    set.seed(123456)
+    n=2000; m=9
+    ctobj(simulateRnaSeqData(output="matrix", n=n, m=m)%>%data.frame%>%
+            mutate(Gene=sample(unique(hgnc.table$Approved.Symbol), n))%>%
+            dplyr::select(Gene, everything(.)))
+    
+    pobj(data.frame(ID=paste0("sample", 1:m), 
+                    Treatment=rep(c("Dose10", "Control", "Dose20"), each=3), 
+                    Gender=sample(c("F", "M"), m, T)))
+    
+    #ngenes
+    output$ngene <- renderText({paste("Number of genes: ", dim(ctobj())[1], " [First 10 rows displayed]")})
+    #nsamples
+    output$nsample <- renderText({paste("Number of samples: ", (dim(ctobj())[2])-1, " [First 10 rows displayed]")})
+    #display 10rows count matrix
+    output$matrix <- renderTable({
+      head(ctobj(), 10)
+    })
+    #display10rows manifest
+    output$pdat <- renderTable({
+      head(pobj(), 10)
+    })
+    #model variables
+    ##comparison variable
+    observe({
+      updateSelectInput(session, "design", choices="Treatment")
+    })
+    ##ref0
+    output$level0 <- renderUI({
+      selectInput("ref0", "Reference group", "Control")
+    })
+    ##ref1
+    output$level1 <- renderUI({
+      selectInput("ref1", "Study group", "Dose20")
+    })
+  })
+  
+  observeEvent(input$file1, {
+    ctobj <- (NULL)
+    ctobj(read_excel(input$file1$datapath))
+    
+    ##SHOW SUMMARY
+    output$ngene <- renderText({paste("Number of genes: ", dim(ctobj())[1], ". [First 10 rows displayed]")})
+    
+    output$nsample <- renderText({paste("Number of samples: ", (dim(ctobj())[2])-1, ". [First 10 rows displayed]")})
+    
+    ##DISPLAY 10 ROWS
+    output$matrix <- renderTable({
+      head(ctobj(), 10)
+    })
+  })
+  observeEvent(input$file2, {
+    pobj <- (NULL)
+    pobj(read_excel(input$file2$datapath))
+    
+    output$pdat <- renderTable({
+      head(pobj(),  10)
+    })
+    ##MODEL VARIABLES
+    ###COMPARISON VARIALBE
+    observe({
+      updateSelectInput(session, "design", choices=names(pobj()))
+    })
+    ###CONTROL
+    output$level0 <- renderUI({
+      selectInput("ref0", "Reference group", pobj()[[input$design]])
+    })
+    ###TARGET
+    output$level1 <- renderUI({
+      selectInput("ref1", "Study group", pobj()[[input$design]])
+    })
+  })
+  
+  ##ANALYSIS
+  resobj <- reactiveVal()
+  volplot <- reactiveVal()
+  gores <- reactiveVal()
+  
+  observeEvent(input$runbutton, {
+    resobj <- (NULL)
+    volplot <- (NULL)
+    gores <- (NULL)
+    withProgress(message = 'Running ...', value=0, style = "old",{
+      ###DGE
+      Sys.sleep(1)
+      resobj(getdgeres(ctobj(), pobj(),
+                       comparison=input$design, 
+                       level1=input$ref1,
+                       level0=input$ref0))
+      incProgress(0.8, detail="Differeital expression ... ")
+
+      ###PLOTTING
+      Sys.sleep(2)
+      volplot(getvolcano(resobj()[["results"]]))
+      incProgress(0.2, detail="making plot ... ")
+    })
+  })
+  
+  ##tabPanel-RESULTS
+  todowndat <- reactive({
+    switch(input$results,
+           "Results" = resobj()[["results"]],
+           "Normalized matrix" = resobj()[["normal"]]
+    )
+  })
+  
+  output$table <- renderTable({
+    todowndat()
+  })
+  
+  output$downloadData <- downloadHandler(
+    filename = function() {
+      paste(input$results, ".csv", sep = "")
+    },
+    content = function(file) {
+      write.csv(todowndat(), file, row.names = FALSE)
+    }
+  ) 
+  
+  ##tabPanel-PLOT
+  output$plot1 <- renderPlot({
+    volplot()[["plot"]]
+  })
+  
+  output$brush_info <- renderPrint({
+    showdf<-volplot()[["brush"]]%>%dplyr::select(Gene, log2FoldChange, pvalue, padj, log10padj) 
+    brushedPoints(showdf, input$plot1_brush)
+  })
+  
+  #RESET for new analysis
+  observeEvent(input$reset, {js$reset()}) 
+  
+}
+```
+
+```{r runapp,  echo=FALSE, comments="", warning=FALSE, message=FALSE}
+shinyApp(ui, server, options = list(height = 1100))
+```

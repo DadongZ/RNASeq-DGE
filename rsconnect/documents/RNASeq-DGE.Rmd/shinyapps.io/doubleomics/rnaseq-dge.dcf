@@ -1,0 +1,10 @@
+name: rnaseq-dge
+title:
+username:
+account: doubleomics
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 1783591
+bundleId: 2786208
+url: https://doubleomics.shinyapps.io/rnaseq-dge/
+when: 1581261229.08969
